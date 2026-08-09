@@ -3,3 +3,6 @@ out/
 dist/
 resources/bin/
 *.log
+test-results/
+playwright-report/
+playwright/.cache/

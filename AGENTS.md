@@ -19,6 +19,7 @@ npm install
 node scripts/fetch-binaries.mjs   # 下载 mpv + yt-dlp 到 resources/bin/（gitignore，必须跑）
 npm run dev                       # 开发模式
 npm test                          # vitest（必须全绿才算完成）
+npm run e2e                       # 构建 + Playwright Electron 端到端验收
 npx tsc --noEmit                  # 类型检查（必须干净）
 npm run build                     # electron-vite 构建
 npm run dist                      # electron-builder NSIS 安装包（仅 Windows）

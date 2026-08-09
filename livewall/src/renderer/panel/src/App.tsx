@@ -32,6 +32,32 @@ declare global {
   }
 }
 
+const iconStyle: React.CSSProperties = {
+  width: 16,
+  height: 16,
+  fill: 'currentColor',
+  verticalAlign: 'middle'
+}
+
+function Icon({ path, title }: { path: string; title: string }): React.JSX.Element {
+  return (
+    <svg style={iconStyle} viewBox="0 0 24 24" role="img" aria-label={title}>
+      <title>{title}</title>
+      <path d={path} />
+    </svg>
+  )
+}
+
+const PlayIcon = () => <Icon title="播放" path="M8 5v14l11-7z" />
+const StopIcon = () => <Icon title="停止" path="M6 6h12v12H6z" />
+const EyeIcon = () => <Icon title="显示" path="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z" />
+const EyeOffIcon = () => <Icon title="隐藏" path="M12 7c2.76 0 5 2.24 5 5 0 .65-.13 1.26-.36 1.83l2.92 2.92c1.51-1.26 2.7-2.89 3.43-4.75-1.73-4.39-6-7.5-11-7.5-1.4 0-2.74.25-3.98.7l2.16 2.16C10.74 7.13 11.35 7 12 7zM2 4.27l2.28 2.28.46.46C3.08 8.3 1.78 10.02 1 12c1.73 4.39 6 7.5 11 7.5 1.55 0 3.03-.3 4.38-.84l.42.42L19.73 22 21 20.73 3.27 3 2 4.27zM7.53 9.8l1.55 1.55c-.05.21-.08.43-.08.65 0 1.66 1.34 3 3 3 .22 0 .44-.03.65-.08l1.55 1.55c-.67.33-1.41.53-2.2.53-2.76 0-5-2.24-5-5 0-.79.2-1.53.53-2.2zm4.31-.78l3.15 3.15.02-.16c0-1.66-1.34-3-3-3l-.17.01z" />
+const PlusIcon = () => <Icon title="添加" path="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z" />
+const TrashIcon = () => <Icon title="删除" path="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z" />
+const EditIcon = () => <Icon title="编辑" path="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z" />
+const FolderIcon = () => <Icon title="笔记目录" path="M10 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z" />
+const SaveIcon = () => <Icon title="保存" path="M17 3H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V7l-4-4zm-5 16c-1.66 0-3-1.34-3-3s1.34-3 3-3 3 1.34 3 3-1.34 3-3 3zm3-10H5V5h10v4z" />
+
 function slotSourceKey(p: Preset): string {
   return p.platform === 'bilibili' ? `bilibili:${p.roomId}` : `youtube:${p.videoUrl}`
 }
@@ -55,13 +81,133 @@ function buildPresetUsage(layout: Layout, presets: Preset[]): Map<string, number
   return usage
 }
 
-function SlotCard({ slot, layout, presets, presetUsage, refresh, refreshPresets }: {
+function PresetManager({ presets, presetUsage, refreshPresets }: {
+  presets: Preset[]
+  presetUsage: Map<string, number>
+  refreshPresets: () => Promise<void>
+}): React.JSX.Element {
+  const [platform, setPlatform] = useState<Platform>('bilibili')
+  const [input, setInput] = useState('')
+  const [label, setLabel] = useState('')
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [msg, setMsg] = useState('')
+
+  function resetForm(): void {
+    setInput('')
+    setLabel('')
+    setEditingId(null)
+    setMsg('')
+  }
+
+  async function add(): Promise<void> {
+    if (!input.trim()) return
+    const p: Omit<Preset, 'id'> = platform === 'bilibili'
+      ? { platform, label: label.trim() || input.trim().slice(0, 30), roomId: input.trim(), tags: [] }
+      : { platform, label: label.trim() || input.trim().slice(0, 30), videoUrl: input.trim(), tags: [] }
+    await window.livewall.addPreset(p)
+    await refreshPresets()
+    resetForm()
+    setMsg('已添加预设')
+  }
+
+  async function saveEdit(): Promise<void> {
+    if (!editingId) return
+    await window.livewall.updatePreset(editingId, {
+      label: label.trim() || undefined,
+      roomId: platform === 'bilibili' ? input.trim() : undefined,
+      videoUrl: platform === 'youtube' ? input.trim() : undefined
+    })
+    await refreshPresets()
+    resetForm()
+    setMsg('已更新预设')
+  }
+
+  async function remove(id: string): Promise<void> {
+    await window.livewall.removePreset(id)
+    await refreshPresets()
+    if (editingId === id) resetForm()
+  }
+
+  function startEdit(p: Preset): void {
+    setEditingId(p.id)
+    setPlatform(p.platform)
+    setInput(p.platform === 'bilibili' ? (p.roomId ?? '') : (p.videoUrl ?? ''))
+    setLabel(p.label)
+    setMsg('')
+  }
+
+  return (
+    <div style={{ border: '1px solid #444', borderRadius: 8, padding: 12, marginBottom: 12 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+        <b>预设管理</b>
+        <span style={{ fontSize: 12, color: '#888' }}>全局共享，所有槽位可选用</span>
+      </div>
+      <div style={{ display: 'flex', gap: 4, marginBottom: 8 }}>
+        <select value={platform} onChange={(e) => setPlatform(e.target.value as Platform)}>
+          <option value="bilibili">B站</option>
+          <option value="youtube">YT</option>
+        </select>
+        <input
+          placeholder={platform === 'bilibili' ? '房间号/URL' : 'watch URL'}
+          value={input}
+          onChange={(e) => setInput(e.target.value)}
+          style={{ flex: 1, minWidth: 0 }}
+        />
+        <input
+          placeholder="别名（可选）"
+          value={label}
+          onChange={(e) => setLabel(e.target.value)}
+          style={{ width: 120 }}
+        />
+        {editingId ? (
+          <>
+            <button onClick={() => void saveEdit()} title="保存修改"><SaveIcon /></button>
+            <button onClick={resetForm} title="取消编辑">✕</button>
+          </>
+        ) : (
+          <button data-testid="preset-add" onClick={() => void add()} title="添加预设"><PlusIcon /></button>
+        )}
+      </div>
+      {msg && <div style={{ color: '#e80', fontSize: 12, marginBottom: 8 }}>{msg}</div>}
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+        {presets.length === 0 && <span style={{ fontSize: 12, color: '#888' }}>暂无预设</span>}
+        {presets.map((p) => {
+          const usedSlot = presetUsage.get(p.id)
+          return (
+            <div
+              key={p.id}
+              data-testid={`preset-item-${p.id}`}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
+                padding: '4px 8px',
+                border: '1px solid #444',
+                borderRadius: 6,
+                fontSize: 12,
+                background: usedSlot !== undefined ? '#2a3a2a' : 'transparent'
+              }}
+            >
+              <span>
+                {p.platform === 'bilibili' ? 'B' : 'Y'}: {p.label}
+                {usedSlot !== undefined && <span style={{ color: '#6c6' }}> (槽位 {usedSlot + 1})</span>}
+              </span>
+              <button onClick={() => startEdit(p)} title="编辑"><EditIcon /></button>
+              <button data-testid={`preset-delete-${p.id}`} onClick={() => void remove(p.id)} title="删除"><TrashIcon /></button>
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
+function SlotCard({ slot, layout, presets, presetUsage, refresh }: {
   slot: number
   layout: Layout
   presets: Preset[]
   presetUsage: Map<string, number>
   refresh: () => Promise<void>
-  refreshPresets: () => Promise<void>
 }): React.JSX.Element {
   const s: SlotState | undefined = layout.slots.find((x) => x.index === slot)
   const [platform, setPlatform] = useState<Platform>('bilibili')
@@ -113,37 +259,17 @@ function SlotCard({ slot, layout, presets, presetUsage, refresh, refreshPresets 
     setInput(p.platform === 'bilibili' ? (p.roomId ?? '') : (p.videoUrl ?? ''))
   }
 
-  async function savePreset(): Promise<void> {
-    if (!input.trim()) return
-    const label = input.trim().slice(0, 30)
-    await window.livewall.addPreset(
-      platform === 'bilibili'
-        ? { platform, label, roomId: input.trim(), tags: [] }
-        : { platform, label, videoUrl: input.trim(), tags: [] }
-    )
-    await refreshPresets()
-    setStatus('已存为预设')
-  }
-
-  async function deletePreset(): Promise<void> {
-    const p = presets.find(
-      (x) => x.platform === platform && (x.roomId === input || x.videoUrl === input)
-    )
-    if (!p) {
-      setStatus('当前输入没有匹配的预设')
-      return
-    }
-    await window.livewall.removePreset(p.id)
-    await refreshPresets()
-    setStatus('预设已删除')
-  }
-
   return (
     <div data-testid={`slot-card-${slot}`} style={{ border: '1px solid #444', borderRadius: 8, padding: 12 }}>
-      <b>槽位 {slot + 1}</b>{' '}
-      <span data-testid={`slot-status-${slot}`} style={{ color: '#888', fontSize: 12 }}>
-        {s?.source ? s.source.label : '空闲'}
-      </span>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+        <b>槽位 {slot + 1}</b>
+        <span data-testid={`slot-status-${slot}`} style={{ color: '#888', fontSize: 12, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          {s?.source ? s.source.label : '空闲'}
+        </span>
+        <button onClick={() => void window.livewall.setVisible(slot, !(s?.visible ?? true)).then(refresh)} title={s?.visible ? '隐藏' : '显示'}>
+          {s?.visible ? <EyeIcon /> : <EyeOffIcon />}
+        </button>
+      </div>
       <div style={{ display: 'flex', gap: 4, margin: '8px 0' }}>
         <select value={platform} onChange={(e) => setPlatform(e.target.value as Platform)}>
           <option value="bilibili">B站</option>
@@ -157,15 +283,15 @@ function SlotCard({ slot, layout, presets, presetUsage, refresh, refreshPresets 
           onChange={(e) => setInput(e.target.value)}
         />
         {running ? (
-          <button data-testid={`slot-stop-${slot}`} onClick={stop}>停</button>
+          <button data-testid={`slot-stop-${slot}`} onClick={stop} title="停止"><StopIcon /></button>
         ) : (
-          <button data-testid={`slot-start-${slot}`} onClick={start}>播</button>
+          <button data-testid={`slot-start-${slot}`} onClick={start} title="播放"><PlayIcon /></button>
         )}
       </div>
-      <div style={{ display: 'flex', gap: 4, marginBottom: 8 }}>
+      <div style={{ marginBottom: 8 }}>
         <select
           data-testid={`slot-preset-${slot}`}
-          style={{ flex: 1, minWidth: 0 }}
+          style={{ width: '100%' }}
           value=""
           onChange={(e) => e.target.value && pickPreset(e.target.value)}
         >
@@ -180,8 +306,6 @@ function SlotCard({ slot, layout, presets, presetUsage, refresh, refreshPresets 
             )
           })}
         </select>
-        <button data-testid={`slot-save-preset-${slot}`} onClick={() => void savePreset()}>存预设</button>
-        <button data-testid={`slot-delete-preset-${slot}`} onClick={() => void deletePreset()}>删预设</button>
       </div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
         <span style={{ fontSize: 12 }}>音量</span>
@@ -194,9 +318,6 @@ function SlotCard({ slot, layout, presets, presetUsage, refresh, refreshPresets 
           style={{ flex: 1 }}
         />
         <span style={{ fontSize: 12, width: 24 }}>{s?.volume ?? 60}</span>
-        <button onClick={() => void window.livewall.setVisible(slot, !(s?.visible ?? true)).then(refresh)}>
-          {s?.visible ? '隐' : '显'}
-        </button>
       </div>
       {s?.source?.platform === 'bilibili' && (
         <input
@@ -324,11 +445,14 @@ export default function App(): React.JSX.Element {
             平铺{n}
           </button>
         ))}
-        <button onClick={() => void window.livewall.setAllVisible(!anyVisible).then(refresh)}>
-          {anyVisible ? '全部隐藏' : '全部显示'}
+        <button onClick={() => void window.livewall.setAllVisible(!anyVisible).then(refresh)} title={anyVisible ? '全部隐藏' : '全部显示'}>
+          {anyVisible ? <EyeOffIcon /> : <EyeIcon />}
         </button>
-        <button onClick={() => void window.livewall.openNotesDir()}>笔记目录</button>
+        <button onClick={() => void window.livewall.openNotesDir()} title="笔记目录">
+          <FolderIcon />
+        </button>
       </div>
+      <PresetManager presets={presets} presetUsage={presetUsage} refreshPresets={refreshPresets} />
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
         {[0, 1, 2, 3, 4, 5].map((i) => (
           <SlotCard
@@ -338,7 +462,6 @@ export default function App(): React.JSX.Element {
             presets={presets}
             presetUsage={presetUsage}
             refresh={refresh}
-            refreshPresets={refreshPresets}
           />
         ))}
       </div>

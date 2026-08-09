@@ -50,9 +50,9 @@ test.describe('livewall smoke', () => {
     }
   })
 
-  test('preset can be saved and appears in all slot selectors', async () => {
-    await page.locator('[data-testid="slot-input-0"]').fill('114514')
-    await page.locator('[data-testid="slot-save-preset-0"]').click()
+  test('preset can be added in manager and appears in all slot selectors', async () => {
+    await page.locator('input[placeholder="房间号/URL"]').first().fill('114514')
+    await page.locator('[data-testid="preset-add"]').click()
     await page.waitForTimeout(300)
 
     // slot 1 selector should show the preset
@@ -60,6 +60,9 @@ test.describe('livewall smoke', () => {
 
     // slot 2 selector should also show it
     await expect(page.locator('[data-testid="slot-preset-1"] option:has-text("114514")')).toHaveCount(1)
+
+    // preset manager should list it
+    await expect(page.locator('text=114514').first()).toBeVisible()
   })
 
   test('tile 6 updates layout.json with 6 rects', async () => {

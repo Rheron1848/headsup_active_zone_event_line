@@ -1,6 +1,6 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import QRCode from 'qrcode'
-import type { Layout, Platform, Preset, SlotState } from '../../../shared/types'
+import type { Layout, Platform, Preset, SlotState, Source } from '../../../shared/types'
 
 declare global {
   interface Window {
@@ -32,10 +32,34 @@ declare global {
   }
 }
 
-function SlotCard({ slot, layout, presets, refresh, refreshPresets }: {
+function slotSourceKey(p: Preset): string {
+  return p.platform === 'bilibili' ? `bilibili:${p.roomId}` : `youtube:${p.videoUrl}`
+}
+
+function sourceKey(s: Source): string {
+  return s.platform === 'bilibili' ? `bilibili:${s.roomId}` : `youtube:${s.videoUrl}`
+}
+
+function buildPresetUsage(layout: Layout, presets: Preset[]): Map<string, number> {
+  const usage = new Map<string, number>()
+  for (const slot of layout.slots) {
+    if (!slot.source) continue
+    const key = sourceKey(slot.source)
+    for (const p of presets) {
+      if (slotSourceKey(p) === key) {
+        usage.set(p.id, slot.index)
+        break
+      }
+    }
+  }
+  return usage
+}
+
+function SlotCard({ slot, layout, presets, presetUsage, refresh, refreshPresets }: {
   slot: number
   layout: Layout
   presets: Preset[]
+  presetUsage: Map<string, number>
   refresh: () => Promise<void>
   refreshPresets: () => Promise<void>
 }): React.JSX.Element {
@@ -115,9 +139,9 @@ function SlotCard({ slot, layout, presets, refresh, refreshPresets }: {
   }
 
   return (
-    <div style={{ border: '1px solid #444', borderRadius: 8, padding: 12 }}>
+    <div data-testid={`slot-card-${slot}`} style={{ border: '1px solid #444', borderRadius: 8, padding: 12 }}>
       <b>槽位 {slot + 1}</b>{' '}
-      <span style={{ color: '#888', fontSize: 12 }}>
+      <span data-testid={`slot-status-${slot}`} style={{ color: '#888', fontSize: 12 }}>
         {s?.source ? s.source.label : '空闲'}
       </span>
       <div style={{ display: 'flex', gap: 4, margin: '8px 0' }}>
@@ -126,28 +150,38 @@ function SlotCard({ slot, layout, presets, refresh, refreshPresets }: {
           <option value="youtube">YT</option>
         </select>
         <input
+          data-testid={`slot-input-${slot}`}
           style={{ flex: 1, minWidth: 0 }}
           placeholder={platform === 'bilibili' ? '房间号/URL' : 'watch URL'}
           value={input}
           onChange={(e) => setInput(e.target.value)}
         />
-        {running ? <button onClick={stop}>停</button> : <button onClick={start}>播</button>}
+        {running ? (
+          <button data-testid={`slot-stop-${slot}`} onClick={stop}>停</button>
+        ) : (
+          <button data-testid={`slot-start-${slot}`} onClick={start}>播</button>
+        )}
       </div>
       <div style={{ display: 'flex', gap: 4, marginBottom: 8 }}>
         <select
+          data-testid={`slot-preset-${slot}`}
           style={{ flex: 1, minWidth: 0 }}
           value=""
           onChange={(e) => e.target.value && pickPreset(e.target.value)}
         >
           <option value="">选择预设…</option>
-          {presets.map((p) => (
-            <option key={p.id} value={p.id}>
-              {p.label}
-            </option>
-          ))}
+          {presets.map((p) => {
+            const usedSlot = presetUsage.get(p.id)
+            const label = usedSlot !== undefined ? `${p.label} (已在槽位 ${usedSlot + 1})` : p.label
+            return (
+              <option key={p.id} value={p.id}>
+                {label}
+              </option>
+            )
+          })}
         </select>
-        <button onClick={() => void savePreset()}>存预设</button>
-        <button onClick={() => void deletePreset()}>删预设</button>
+        <button data-testid={`slot-save-preset-${slot}`} onClick={() => void savePreset()}>存预设</button>
+        <button data-testid={`slot-delete-preset-${slot}`} onClick={() => void deletePreset()}>删预设</button>
       </div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
         <span style={{ fontSize: 12 }}>音量</span>
@@ -202,31 +236,38 @@ function LoginSection(): React.JSX.Element {
   }, [check])
 
   async function login(): Promise<void> {
-    const { url, qrcodeKey } = await window.livewall.loginStart()
-    setQr(await QRCode.toDataURL(url, { width: 160 }))
-    setMsg('请用 B 站 App 扫码')
-    if (polling.current) return
-    polling.current = true
     try {
-      for (;;) {
-        await new Promise((r) => setTimeout(r, 2000))
-        if (!polling.current) break // 组件卸载/中断
-        const { status } = await window.livewall.loginPoll(qrcodeKey)
-        if (status === 'confirmed') {
-          setMsg('登录成功')
-          setQr(null)
-          await check()
-          break
+      setMsg('请求二维码中…')
+      setQr(null)
+      const { url, qrcodeKey } = await window.livewall.loginStart()
+      setQr(await QRCode.toDataURL(url, { width: 160 }))
+      setMsg('请用 B 站 App 扫码')
+      if (polling.current) return
+      polling.current = true
+      try {
+        for (;;) {
+          await new Promise((r) => setTimeout(r, 2000))
+          if (!polling.current) break // 组件卸载/中断
+          const { status } = await window.livewall.loginPoll(qrcodeKey)
+          if (status === 'confirmed') {
+            setMsg('登录成功')
+            setQr(null)
+            await check()
+            break
+          }
+          if (status === 'expired') {
+            setMsg('二维码已过期，请重新点击登录')
+            setQr(null)
+            break
+          }
+          if (status === 'scanned') setMsg('已扫码，请在手机上确认')
         }
-        if (status === 'expired') {
-          setMsg('二维码已过期，请重新点击登录')
-          setQr(null)
-          break
-        }
-        if (status === 'scanned') setMsg('已扫码，请在手机上确认')
+      } finally {
+        polling.current = false
       }
-    } finally {
-      polling.current = false
+    } catch (e) {
+      setMsg(`登录失败：${e instanceof Error ? e.message : String(e)}`)
+      setQr(null)
     }
   }
 
@@ -268,6 +309,8 @@ export default function App(): React.JSX.Element {
     })
   }, [refresh, refreshPresets])
 
+  const presetUsage = useMemo(() => (layout ? buildPresetUsage(layout, presets) : new Map<string, number>()), [layout, presets])
+
   if (!layout) return <div style={{ padding: 24 }}>加载中…</div>
   const anyVisible = layout.slots.some((s) => s.visible)
 
@@ -293,6 +336,7 @@ export default function App(): React.JSX.Element {
             slot={i}
             layout={layout}
             presets={presets}
+            presetUsage={presetUsage}
             refresh={refresh}
             refreshPresets={refreshPresets}
           />

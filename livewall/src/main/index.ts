@@ -1,5 +1,6 @@
 import { app, BrowserWindow, safeStorage, screen } from 'electron'
 import path from 'node:path'
+import fs from 'node:fs'
 import { PlayerManager } from './player-manager'
 import { registerHandlers, setAllVisible } from './ipc-handlers'
 import { LayoutStore } from '../core/layout/store'
@@ -16,9 +17,19 @@ const dirname = import.meta.dirname
 const isWin = process.platform === 'win32'
 
 export function binDir(): string {
-  return app.isPackaged
-    ? path.join(process.resourcesPath, 'bin')
-    : path.join(app.getAppPath(), 'resources', 'bin')
+  if (app.isPackaged) return path.join(process.resourcesPath, 'bin')
+
+  // 非打包态：dev 模式、本机调试、Playwright 直接启动 out/main/index.js 时路径不同，逐个尝试
+  const candidates = [
+    path.join(app.getAppPath(), 'resources', 'bin'),
+    path.join(dirname, '..', '..', 'resources', 'bin'),
+    path.join(process.cwd(), 'resources', 'bin')
+  ]
+  for (const dir of candidates) {
+    if (fs.existsSync(dir)) return dir
+  }
+  // 兜底：返回最可能的 dev 路径，让后续 spawn 报出明确错误
+  return candidates[0]
 }
 
 let panel: BrowserWindow | null = null
@@ -36,6 +47,13 @@ function createPanel(): void {
     }
   })
   panel.on('closed', () => (panel = null))
+  panel.webContents.on('console-message', (_e, level, message, line, sourceId) => {
+    const label = ['debug', 'info', 'warn', 'error'][level] ?? String(level)
+    console.log(`[renderer:${label}] ${sourceId}:${line} ${message}`)
+  })
+  if (process.env.NODE_ENV === 'development' || process.env.ELECTRON_RENDERER_URL) {
+    panel.webContents.openDevTools({ mode: 'detach' })
+  }
   if (process.env.ELECTRON_RENDERER_URL) {
     panel.loadURL(process.env.ELECTRON_RENDERER_URL + '/panel/')
   } else {
@@ -54,7 +72,7 @@ function ensureInitialTiling(layout: LayoutStore): void {
 }
 
 app.whenReady().then(() => {
-  const userData = app.getPath('userData')
+  const userData = process.env.LIVEWALL_USER_DATA ?? app.getPath('userData')
   const layout = new LayoutStore(path.join(userData, 'layout.json'))
   ensureInitialTiling(layout)
   const presets = new PresetStore(path.join(userData, 'presets.json'))
@@ -153,6 +171,6 @@ app.on('before-quit', (e) => {
 })
 
 app.on('window-all-closed', () => {
-  // 常驻托盘：面板关闭不退出，只有托盘「退出」才结束
-  if (!isWin && process.platform !== 'darwin') app.quit()
+  // 测试模式下窗口全关就退出，方便自动化
+  if (process.env.LIVEWALL_USER_DATA || (!isWin && process.platform !== 'darwin')) app.quit()
 })

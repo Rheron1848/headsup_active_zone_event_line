@@ -11,7 +11,7 @@ export function parseSetCookies(headers: string[]): Record<string, string> {
 }
 
 export async function createLoginQr(fetchFn: typeof fetch = fetch) {
-  const r = await fetchFn('https://passport.bilibili.com/x/passport-login/qrcode/generate',
+  const r = await fetchFn('https://passport.bilibili.com/x/passport-login/web/qrcode/generate',
     { headers: { 'User-Agent': UA } })
   const j = await r.json()
   if (j.code !== 0) throw new Error(`二维码生成失败: ${j.message}`)
@@ -25,7 +25,7 @@ export type QrStatus = {
 
 export async function pollLoginQr(qrcodeKey: string, fetchFn: typeof fetch = fetch): Promise<QrStatus> {
   const r = await fetchFn(
-    `https://passport.bilibili.com/x/passport-login/qrcode/poll?qrcode_key=${qrcodeKey}`,
+    `https://passport.bilibili.com/x/passport-login/web/qrcode/poll?qrcode_key=${qrcodeKey}`,
     { headers: { 'User-Agent': UA } })
   const j = await r.json()
   const code: number = j.data?.code

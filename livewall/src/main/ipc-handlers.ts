@@ -3,19 +3,25 @@ import type { Rect, Source } from '../shared/types'
 import { resolveSource } from '../core/resolver'
 import { tileRects } from '../core/layout/tiling'
 import type { LayoutStore } from '../core/layout/store'
+import type { PresetStore } from '../core/presets/store'
 import type { CookieStore } from './cookie-store'
 import { createLoginQr, pollLoginQr } from '../core/danmaku/login'
 import { sendDanmaku } from '../core/danmaku/bilibili'
 import { Throttler } from '../core/danmaku/throttle'
 import { appendNote } from '../core/notes/writer'
 import { clampVolume, type PlayerManager } from './player-manager'
+import type { WindowTracker } from './window-tracker'
+import type { OverlayManager } from './overlay-manager'
 import { findWindowByTitle, setWindowRect, showWindow } from './win32'
 
 export interface HandlerDeps {
   pm: PlayerManager
   layout: LayoutStore
+  presets: PresetStore
   cookies: CookieStore
   hwnds: Map<number, number>
+  tracker: WindowTracker
+  overlays: OverlayManager
   notesDir: string
 }
 
@@ -42,6 +48,25 @@ async function findHwndWithRetry(title: string, tries = 10): Promise<number | nu
   return null
 }
 
+/** 流起来后的窗口侧接线：登记 hwnd、开始跟踪、创建工具条覆盖窗 */
+async function attachWindow(deps: HandlerDeps, slot: number): Promise<void> {
+  const rect = deps.layout.load().slots.find((s) => s.index === slot)?.rect
+  if (!rect) return
+  const hwnd = await findHwndWithRetry(`livewall-slot-${slot}`)
+  if (hwnd) {
+    deps.hwnds.set(slot, hwnd)
+    deps.tracker.registerHwnd(slot, hwnd)
+    tryWin32(() => setWindowRect(hwnd, rect))
+  }
+  deps.overlays.create(slot, rect)
+}
+
+function detachWindow(deps: HandlerDeps, slot: number): void {
+  deps.hwnds.delete(slot)
+  deps.tracker.unregisterHwnd(slot)
+  deps.overlays.destroy(slot)
+}
+
 export function setAllVisible(deps: HandlerDeps, visible: boolean): void {
   const l = deps.layout.load()
   for (const s of l.slots) {
@@ -55,9 +80,20 @@ export function setAllVisible(deps: HandlerDeps, visible: boolean): void {
     }
     deps.layout.updateSlot(s.index, { visible })
   }
+  deps.overlays.setAllVisible(visible)
 }
 
 export function registerHandlers(deps: HandlerDeps): void {
+  // mpv 崩溃自愈：重拉成功则重新接线窗口；彻底失败则清理并标记槽位空闲
+  deps.pm.onExit = (slot, restarted) => {
+    if (restarted) {
+      void attachWindow(deps, slot)
+    } else {
+      detachWindow(deps, slot)
+      deps.layout.updateSlot(slot, { source: null })
+    }
+  }
+
   ipcMain.handle(
     'stream:start',
     async (_e, slot: number, source: Source, rect: Rect, volume: number) => {
@@ -67,18 +103,15 @@ export function registerHandlers(deps: HandlerDeps): void {
       const savedSource =
         stream.platform === 'bilibili' ? { ...source, roomId: stream.roomId } : source
       deps.layout.updateSlot(slot, { source: savedSource, rect, volume, visible: true })
-      const hwnd = await findHwndWithRetry(`livewall-slot-${slot}`)
-      if (hwnd) {
-        deps.hwnds.set(slot, hwnd)
-        tryWin32(() => setWindowRect(hwnd, rect))
-      }
-      return { title: stream.title, roomId: stream.roomId, hwnd }
+      await attachWindow(deps, slot)
+      return { title: stream.title, roomId: stream.roomId }
     }
   )
 
   ipcMain.handle('stream:stop', async (_e, slot: number) => {
     await deps.pm.stop(slot)
-    deps.hwnds.delete(slot)
+    detachWindow(deps, slot)
+    deps.layout.updateSlot(slot, { source: null })
   })
 
   ipcMain.handle('stream:setVolume', async (_e, slot: number, v: number) => {
@@ -99,6 +132,8 @@ export function registerHandlers(deps: HandlerDeps): void {
       void player.ipc.setProperty('volume', v).catch(() => {})
     }
     deps.layout.updateSlot(slot, { visible })
+    if (!visible) deps.overlays.get(slot)?.hide()
+    else deps.overlays.get(slot)?.showInactive()
   })
 
   ipcMain.handle('stream:setAllVisible', (_e, visible: boolean) => {
@@ -120,6 +155,11 @@ export function registerHandlers(deps: HandlerDeps): void {
     }
     return deps.layout.load()
   })
+
+  ipcMain.handle('presets:list', () => deps.presets.list())
+  ipcMain.handle('presets:add', (_e, p) => deps.presets.add(p))
+  ipcMain.handle('presets:update', (_e, id: string, patch) => deps.presets.update(id, patch))
+  ipcMain.handle('presets:remove', (_e, id: string) => deps.presets.remove(id))
 
   ipcMain.handle('danmaku:send', async (_e, slot: number, msg: string) => {
     const s = deps.layout.load().slots.find((x) => x.index === slot)
@@ -164,5 +204,10 @@ export function registerHandlers(deps: HandlerDeps): void {
   ipcMain.handle('auth:status', () => {
     const c = deps.cookies.load()
     return { loggedIn: !!(c && c.SESSDATA && c.bili_jct) }
+  })
+
+  // 工具条覆盖窗的鼠标交互切换（preload 用 send，不等待回复）
+  ipcMain.on('overlay:interactive', (_e, slot: number, interactive: boolean) => {
+    deps.overlays.setInteractive(slot, interactive)
   })
 }

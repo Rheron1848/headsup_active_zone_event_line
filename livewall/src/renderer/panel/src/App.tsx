@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react'
 import QRCode from 'qrcode'
-import type { Layout, Platform, SlotState } from '../../../shared/types'
+import type { Layout, Platform, Preset, SlotState } from '../../../shared/types'
 
 declare global {
   interface Window {
@@ -23,15 +23,21 @@ declare global {
       loginStart: () => Promise<{ url: string; qrcodeKey: string }>
       loginPoll: (qrcodeKey: string) => Promise<{ status: string }>
       authStatus: () => Promise<{ loggedIn: boolean }>
-      onHotkeyNote: (cb: (slot: number) => void) => void
+      listPresets: () => Promise<Preset[]>
+      addPreset: (p: Omit<Preset, 'id'>) => Promise<Preset>
+      updatePreset: (id: string, patch: Partial<Omit<Preset, 'id'>>) => Promise<Preset>
+      removePreset: (id: string) => Promise<void>
+      onHotkeyNote: (cb: (slot: number) => void) => () => void
     }
   }
 }
 
-function SlotCard({ slot, layout, refresh }: {
+function SlotCard({ slot, layout, presets, refresh, refreshPresets }: {
   slot: number
   layout: Layout
+  presets: Preset[]
   refresh: () => Promise<void>
+  refreshPresets: () => Promise<void>
 }): React.JSX.Element {
   const s: SlotState | undefined = layout.slots.find((x) => x.index === slot)
   const [platform, setPlatform] = useState<Platform>('bilibili')
@@ -76,6 +82,38 @@ function SlotCard({ slot, layout, refresh }: {
     setStatus('笔记已记录')
   }
 
+  function pickPreset(id: string): void {
+    const p = presets.find((x) => x.id === id)
+    if (!p) return
+    setPlatform(p.platform)
+    setInput(p.platform === 'bilibili' ? (p.roomId ?? '') : (p.videoUrl ?? ''))
+  }
+
+  async function savePreset(): Promise<void> {
+    if (!input.trim()) return
+    const label = input.trim().slice(0, 30)
+    await window.livewall.addPreset(
+      platform === 'bilibili'
+        ? { platform, label, roomId: input.trim(), tags: [] }
+        : { platform, label, videoUrl: input.trim(), tags: [] }
+    )
+    await refreshPresets()
+    setStatus('已存为预设')
+  }
+
+  async function deletePreset(): Promise<void> {
+    const p = presets.find(
+      (x) => x.platform === platform && (x.roomId === input || x.videoUrl === input)
+    )
+    if (!p) {
+      setStatus('当前输入没有匹配的预设')
+      return
+    }
+    await window.livewall.removePreset(p.id)
+    await refreshPresets()
+    setStatus('预设已删除')
+  }
+
   return (
     <div style={{ border: '1px solid #444', borderRadius: 8, padding: 12 }}>
       <b>槽位 {slot + 1}</b>{' '}
@@ -94,6 +132,22 @@ function SlotCard({ slot, layout, refresh }: {
           onChange={(e) => setInput(e.target.value)}
         />
         {running ? <button onClick={stop}>停</button> : <button onClick={start}>播</button>}
+      </div>
+      <div style={{ display: 'flex', gap: 4, marginBottom: 8 }}>
+        <select
+          style={{ flex: 1, minWidth: 0 }}
+          value=""
+          onChange={(e) => e.target.value && pickPreset(e.target.value)}
+        >
+          <option value="">选择预设…</option>
+          {presets.map((p) => (
+            <option key={p.id} value={p.id}>
+              {p.label}
+            </option>
+          ))}
+        </select>
+        <button onClick={() => void savePreset()}>存预设</button>
+        <button onClick={() => void deletePreset()}>删预设</button>
       </div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
         <span style={{ fontSize: 12 }}>音量</span>
@@ -153,24 +207,34 @@ function LoginSection(): React.JSX.Element {
     setMsg('请用 B 站 App 扫码')
     if (polling.current) return
     polling.current = true
-    for (;;) {
-      await new Promise((r) => setTimeout(r, 2000))
-      const { status } = await window.livewall.loginPoll(qrcodeKey)
-      if (status === 'confirmed') {
-        setMsg('登录成功')
-        setQr(null)
-        await check()
-        break
+    try {
+      for (;;) {
+        await new Promise((r) => setTimeout(r, 2000))
+        if (!polling.current) break // 组件卸载/中断
+        const { status } = await window.livewall.loginPoll(qrcodeKey)
+        if (status === 'confirmed') {
+          setMsg('登录成功')
+          setQr(null)
+          await check()
+          break
+        }
+        if (status === 'expired') {
+          setMsg('二维码已过期，请重新点击登录')
+          setQr(null)
+          break
+        }
+        if (status === 'scanned') setMsg('已扫码，请在手机上确认')
       }
-      if (status === 'expired') {
-        setMsg('二维码已过期，请重新点击登录')
-        setQr(null)
-        break
-      }
-      if (status === 'scanned') setMsg('已扫码，请在手机上确认')
+    } finally {
+      polling.current = false
     }
-    polling.current = false
   }
+
+  useEffect(() => {
+    return () => {
+      polling.current = false // 卸载时停止轮询
+    }
+  }, [])
 
   return (
     <div style={{ marginBottom: 12 }}>
@@ -187,17 +251,22 @@ function LoginSection(): React.JSX.Element {
 
 export default function App(): React.JSX.Element {
   const [layout, setLayout] = useState<Layout | null>(null)
+  const [presets, setPresets] = useState<Preset[]>([])
 
   const refresh = useCallback(async () => {
     setLayout(await window.livewall.getLayout())
   }, [])
+  const refreshPresets = useCallback(async () => {
+    setPresets(await window.livewall.listPresets())
+  }, [])
 
   useEffect(() => {
     void refresh()
-    window.livewall.onHotkeyNote((slot) => {
+    void refreshPresets()
+    return window.livewall.onHotkeyNote((slot) => {
       document.querySelector<HTMLInputElement>(`input[data-note-slot="${slot}"]`)?.focus()
     })
-  }, [refresh])
+  }, [refresh, refreshPresets])
 
   if (!layout) return <div style={{ padding: 24 }}>加载中…</div>
   const anyVisible = layout.slots.some((s) => s.visible)
@@ -219,7 +288,14 @@ export default function App(): React.JSX.Element {
       </div>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
         {[0, 1, 2, 3, 4, 5].map((i) => (
-          <SlotCard key={i} slot={i} layout={layout} refresh={refresh} />
+          <SlotCard
+            key={i}
+            slot={i}
+            layout={layout}
+            presets={presets}
+            refresh={refresh}
+            refreshPresets={refreshPresets}
+          />
         ))}
       </div>
     </div>

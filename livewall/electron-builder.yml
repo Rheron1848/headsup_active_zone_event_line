@@ -1,0 +1,18 @@
+appId: com.livewall.app
+productName: livewall
+directories:
+  output: dist
+files:
+  - out/**
+  - resources/wheel-volume.conf
+  - resources/icon.png
+extraResources:
+  - from: resources/bin
+    to: bin
+    filter:
+      - '**/*'
+win:
+  target: nsis
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true

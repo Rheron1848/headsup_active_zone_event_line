@@ -12,7 +12,7 @@ export function createTray(onToggleAll: () => void, onOpenPanel: () => void): Tr
       { label: '显示/隐藏全部', click: onToggleAll },
       { label: '打开面板', click: onOpenPanel },
       { type: 'separator' },
-      { label: '退出', click: () => app.exit(0) }
+      { label: '退出', click: () => app.quit() }
     ])
   )
   return tray

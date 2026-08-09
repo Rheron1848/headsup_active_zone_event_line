@@ -11,6 +11,11 @@ import path from 'node:path'
 const BIN = 'resources/bin'
 mkdirSync(BIN, { recursive: true })
 
+const GH_PROXY = (process.env.GH_PROXY || '').replace(/\/$/, '')
+function proxy(url) {
+  return GH_PROXY ? `${GH_PROXY}/${url}` : url
+}
+
 async function download(url, dest) {
   console.log(`下载 ${url}`)
   const resp = await fetch(url, { redirect: 'follow' })
@@ -21,18 +26,18 @@ async function download(url, dest) {
 async function fetchYtDlp() {
   const name = process.platform === 'win32' ? 'yt-dlp.exe' : 'yt-dlp'
   const dest = path.join(BIN, name)
-  await download(`https://github.com/yt-dlp/yt-dlp/releases/latest/download/${name}`, dest)
+  await download(proxy(`https://github.com/yt-dlp/yt-dlp/releases/latest/download/${name}`), dest)
   if (process.platform !== 'win32') chmodSync(dest, 0o755)
   console.log(`yt-dlp -> ${dest}`)
 }
 
 async function fetchMpvWindows() {
-  const api = 'https://api.github.com/repos/shinchiro/mpv-winbuild-cmake/releases/latest'
+  const api = proxy('https://api.github.com/repos/shinchiro/mpv-winbuild-cmake/releases/latest')
   const rel = await (await fetch(api, { headers: { 'User-Agent': 'livewall' } })).json()
   const asset = rel.assets.find((a) => /mpv-x86_64-.*\.7z$/.test(a.name))
   if (!asset) throw new Error('未找到 mpv 64bit 构建资产')
   const archive = path.join(BIN, asset.name)
-  await download(asset.browser_download_url, archive)
+  await download(proxy(asset.browser_download_url), archive)
   const sevenZip = (await import('7zip-bin')).path7za
   execFileSync(sevenZip, ['e', archive, 'mpv.exe', `-o${BIN}`, '-y'], { stdio: 'inherit' })
   console.log(`mpv.exe -> ${path.join(BIN, 'mpv.exe')}`)

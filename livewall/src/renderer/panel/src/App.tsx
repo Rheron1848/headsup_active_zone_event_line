@@ -28,6 +28,7 @@ declare global {
       updatePreset: (id: string, patch: Partial<Omit<Preset, 'id'>>) => Promise<Preset>
       removePreset: (id: string) => Promise<void>
       onHotkeyNote: (cb: (slot: number) => void) => () => void
+      onLayoutChanged: (cb: (layout: Layout) => void) => () => void
     }
   }
 }
@@ -425,9 +426,15 @@ export default function App(): React.JSX.Element {
   useEffect(() => {
     void refresh()
     void refreshPresets()
-    return window.livewall.onHotkeyNote((slot) => {
+    const offHotkey = window.livewall.onHotkeyNote((slot) => {
       document.querySelector<HTMLInputElement>(`input[data-note-slot="${slot}"]`)?.focus()
     })
+    // 工具条/热键等入口改的状态由主进程推送回来 / state changes from overlay/hotkeys are pushed here
+    const offLayout = window.livewall.onLayoutChanged((l) => setLayout(l))
+    return () => {
+      offHotkey()
+      offLayout()
+    }
   }, [refresh, refreshPresets])
 
   const presetUsage = useMemo(() => (layout ? buildPresetUsage(layout, presets) : new Map<string, number>()), [layout, presets])
@@ -445,8 +452,13 @@ export default function App(): React.JSX.Element {
             平铺{n}
           </button>
         ))}
-        <button onClick={() => void window.livewall.setAllVisible(!anyVisible).then(refresh)} title={anyVisible ? '全部隐藏' : '全部显示'}>
+        <button
+          onClick={() => void window.livewall.setAllVisible(!anyVisible).then(refresh)}
+          title={anyVisible ? '全部隐藏（Ctrl+Alt+H）' : '全部显示（Ctrl+Alt+H）'}
+          style={{ display: 'flex', alignItems: 'center', gap: 4 }}
+        >
           {anyVisible ? <EyeOffIcon /> : <EyeIcon />}
+          {anyVisible ? '全部隐藏' : '全部显示'}
         </button>
         <button onClick={() => void window.livewall.openNotesDir()} title="笔记目录">
           <FolderIcon />

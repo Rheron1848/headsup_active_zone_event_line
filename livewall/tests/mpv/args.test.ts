@@ -18,6 +18,7 @@ describe('buildMpvArgs', () => {
     })
     expect(a).toContain('--ontop')
     expect(a).toContain('--no-border')
+    expect(a).toContain('--keepaspect=no')
     expect(a).toContain('--title=livewall-slot-0')
     expect(a).toContain('--input-ipc-server=\\\\.\\pipe\\livewall-mpv-0')
     expect(a).toContain('--geometry=640x360+10+20')

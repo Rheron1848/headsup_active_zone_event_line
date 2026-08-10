@@ -1,4 +1,5 @@
 import { ipcMain, screen, shell } from 'electron'
+import type { BrowserWindow } from 'electron'
 import type { Rect, Source } from '../shared/types'
 import { resolveSource } from '../core/resolver'
 import { tileRects } from '../core/layout/tiling'
@@ -23,6 +24,15 @@ export interface HandlerDeps {
   tracker: WindowTracker
   overlays: OverlayManager
   notesDir: string
+  /** 取面板窗口（可能已关闭），用于把布局变更推送给渲染端 / panel window getter, may be null */
+  getPanel: () => BrowserWindow | null
+}
+
+/** 布局变更后推送给面板，保证工具条/热键等入口发起的改动同步回 UI
+ *  Push layout changes to the panel so actions from overlay/hotkeys stay in sync */
+function broadcastLayout(deps: HandlerDeps): void {
+  const win = deps.getPanel()
+  if (win && !win.isDestroyed()) win.webContents.send('layout:changed', deps.layout.load())
 }
 
 const isWin = process.platform === 'win32'
@@ -81,6 +91,7 @@ export function setAllVisible(deps: HandlerDeps, visible: boolean): void {
     deps.layout.updateSlot(s.index, { visible })
   }
   deps.overlays.setAllVisible(visible)
+  broadcastLayout(deps)
 }
 
 export function registerHandlers(deps: HandlerDeps): void {
@@ -91,6 +102,7 @@ export function registerHandlers(deps: HandlerDeps): void {
     } else {
       detachWindow(deps, slot)
       deps.layout.updateSlot(slot, { source: null })
+      broadcastLayout(deps)
     }
   }
 
@@ -104,6 +116,7 @@ export function registerHandlers(deps: HandlerDeps): void {
         stream.platform === 'bilibili' ? { ...source, roomId: stream.roomId } : source
       deps.layout.updateSlot(slot, { source: savedSource, rect, volume, visible: true })
       await attachWindow(deps, slot)
+      broadcastLayout(deps)
       return { title: stream.title, roomId: stream.roomId }
     }
   )
@@ -112,6 +125,7 @@ export function registerHandlers(deps: HandlerDeps): void {
     await deps.pm.stop(slot)
     detachWindow(deps, slot)
     deps.layout.updateSlot(slot, { source: null })
+    broadcastLayout(deps)
   })
 
   ipcMain.handle('stream:setVolume', async (_e, slot: number, v: number) => {
@@ -119,6 +133,7 @@ export function registerHandlers(deps: HandlerDeps): void {
     const player = deps.pm.get(slot)
     if (player) await player.ipc.setProperty('volume', vol)
     deps.layout.updateSlot(slot, { volume: vol, muted: vol === 0 })
+    broadcastLayout(deps)
     return vol
   })
 
@@ -134,6 +149,7 @@ export function registerHandlers(deps: HandlerDeps): void {
     deps.layout.updateSlot(slot, { visible })
     if (!visible) deps.overlays.get(slot)?.hide()
     else deps.overlays.get(slot)?.showInactive()
+    broadcastLayout(deps)
   })
 
   ipcMain.handle('stream:setAllVisible', (_e, visible: boolean) => {
@@ -153,6 +169,7 @@ export function registerHandlers(deps: HandlerDeps): void {
       if (hwnd) tryWin32(() => setWindowRect(hwnd, r))
       deps.layout.updateSlot(s.index, { rect: r })
     }
+    broadcastLayout(deps)
     return deps.layout.load()
   })
 

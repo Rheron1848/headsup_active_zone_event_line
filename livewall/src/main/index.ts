@@ -128,7 +128,8 @@ app.whenReady().then(() => {
     hwnds,
     tracker,
     overlays,
-    notesDir: path.join(userData, 'notes')
+    notesDir: path.join(userData, 'notes'),
+    getPanel: () => panel
   }
   registerHandlers(deps)
 

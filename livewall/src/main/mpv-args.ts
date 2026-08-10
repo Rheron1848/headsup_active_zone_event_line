@@ -15,6 +15,9 @@ export function buildMpvArgs(
   const args = [
     '--ontop',
     '--no-border',
+    // 拉伸铺满窗口，避免窗口比例与画面比例不一致时出现黑边
+    // Stretch to fill the window, avoiding letterbox black bars when aspect ratios differ
+    '--keepaspect=no',
     '--keep-open=yes',
     `--title=livewall-slot-${slot}`,
     `--input-ipc-server=${mpvPipeName(slot, opts.platform)}`,

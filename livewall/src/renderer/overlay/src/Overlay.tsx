@@ -88,6 +88,7 @@ export default function Overlay() {
         userSelect: 'none'
       }}
     >
+      <span style={{ ...font, flexShrink: 0, opacity: 0.7 }}>槽{slot + 1}</span>
       <input
         type="range"
         min={0}
@@ -99,7 +100,8 @@ export default function Overlay() {
       />
       <input
         style={{ ...input, flex: 1, minWidth: 60 }}
-        placeholder="弹幕…"
+        placeholder="发弹幕，回车发送"
+        title="弹幕输入框：回车发送（需先在面板扫码登录 B 站）"
         value={danmaku}
         onChange={(e) => setDanmaku(e.target.value)}
         onKeyDown={(e) => {
@@ -109,7 +111,8 @@ export default function Overlay() {
       {noteOpen ? (
         <input
           style={{ ...input, flex: 1, minWidth: 60 }}
-          placeholder="笔记…"
+          placeholder="笔记内容，回车保存"
+          title="笔记：回车保存（带播放时间戳，存为 Markdown）"
           autoFocus
           value={note}
           onChange={(e) => setNote(e.target.value)}
@@ -124,12 +127,16 @@ export default function Overlay() {
           onBlur={() => setNoteOpen(false)}
         />
       ) : (
-        <button style={btn} onClick={() => setNoteOpen(true)}>
+        <button style={btn} title="记录笔记（带当前播放时间戳）" onClick={() => setNoteOpen(true)}>
           笔记
         </button>
       )}
-      <button style={btn} onClick={() => void window.livewallOverlay.setVisible(slot, false)}>
-        隐
+      <button
+        style={btn}
+        title="隐藏本路画面（在控制面板点眼睛图标或按 Ctrl+Alt+H 恢复）"
+        onClick={() => void window.livewallOverlay.setVisible(slot, false)}
+      >
+        隐藏
       </button>
       {toast && (
         <span style={{ ...font, flexShrink: 0, color: '#8f8', whiteSpace: 'nowrap' }}>

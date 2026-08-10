@@ -24,5 +24,10 @@ contextBridge.exposeInMainWorld('livewall', {
     const listener = (_e: unknown, slot: number): void => cb(slot)
     ipcRenderer.on('hotkey-note', listener)
     return () => ipcRenderer.removeListener('hotkey-note', listener)
+  },
+  onLayoutChanged: (cb: (layout: unknown) => void) => {
+    const listener = (_e: unknown, layout: unknown): void => cb(layout)
+    ipcRenderer.on('layout:changed', listener)
+    return () => ipcRenderer.removeListener('layout:changed', listener)
   }
 })

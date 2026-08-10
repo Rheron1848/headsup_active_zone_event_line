@@ -38,4 +38,6 @@ export interface ResolvedStream {
   title: string
   platform: Platform
   roomId?: string
+  /** 该流是否要走 yt-dlp 解析（如 YouTube 页面、B 站视频页） */
+  needsYtdl?: boolean
 }

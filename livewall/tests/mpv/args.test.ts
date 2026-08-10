@@ -38,6 +38,18 @@ describe('buildMpvArgs', () => {
     expect(a.some((s) => s.startsWith('--http-header-fields'))).toBe(false)
     expect(a).toContain('--ytdl=yes')
   })
+  it('bilibili 视频源带 needsYtdl 时产出 ytdl 参数', () => {
+    const v: ResolvedStream = {
+      url: 'https://www.bilibili.com/video/BV1xx411c7mD',
+      headers: { Referer: 'https://www.bilibili.com' },
+      title: 'video',
+      platform: 'bilibili',
+      needsYtdl: true
+    }
+    const a = buildMpvArgs(v, 2, { x: 0, y: 0, w: 640, h: 360 }, 60, { inputConfPath: 'c' })
+    expect(a).toContain('--ytdl=yes')
+    expect(a).toContain('--http-header-fields=Referer: https://www.bilibili.com')
+  })
 })
 
 it('mpvPipeName 按平台返回管道/套接字路径', () => {

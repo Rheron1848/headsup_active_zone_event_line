@@ -148,7 +148,7 @@ function PresetManager({ presets, presetUsage, refreshPresets }: {
           <option value="youtube">YT</option>
         </select>
         <input
-          placeholder={platform === 'bilibili' ? '房间号/URL' : 'watch URL'}
+          placeholder={platform === 'bilibili' ? '房间号/URL/BV号' : 'watch URL'}
           value={input}
           onChange={(e) => setInput(e.target.value)}
           style={{ flex: 1, minWidth: 0 }}
@@ -278,7 +278,7 @@ function SlotCard({ slot, layout, presets, presetUsage, refresh }: {
         <input
           data-testid={`slot-input-${slot}`}
           style={{ flex: 1, minWidth: 0 }}
-          placeholder={platform === 'bilibili' ? '房间号/URL' : 'watch URL'}
+          placeholder={platform === 'bilibili' ? '房间号/URL/BV号' : 'watch URL'}
           value={input}
           onChange={(e) => setInput(e.target.value)}
         />

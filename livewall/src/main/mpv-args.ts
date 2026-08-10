@@ -22,7 +22,7 @@ export function buildMpvArgs(
     `--volume=${Math.round(volume)}`,
     `--input-conf=${opts.inputConfPath}`
   ]
-  if (stream.platform === 'youtube') args.push('--ytdl=yes')
+  if (stream.needsYtdl || stream.platform === 'youtube') args.push('--ytdl=yes')
   // User-Agent 走 mpv 专用参数；其余头（如 Referer）进 http-header-fields
   const headerLines = Object.entries(stream.headers)
     .filter(([k]) => k.toLowerCase() !== 'user-agent')

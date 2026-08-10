@@ -12,6 +12,34 @@ export function parseRoomInput(input: string): string {
   throw new Error(`无法识别的房间输入: ${input}`)
 }
 
+export function parseVideoInput(input: string): string | null {
+  const s = input.trim()
+  if (/^BV[a-zA-Z0-9]+$/.test(s)) return s
+  if (/^av\d+$/.test(s)) return s
+  const m = s.match(/bilibili\.com\/video\/(BV[a-zA-Z0-9]+|av\d+)/)
+  if (m) return m[1]
+  return null
+}
+
+export async function resolveBilibiliVideo(
+  videoInput: string,
+  fetchFn: typeof fetch = fetch
+): Promise<ResolvedStream> {
+  const id = parseVideoInput(videoInput)
+  if (!id) throw new Error(`无法识别的视频输入: ${videoInput}`)
+  const url = /^av/.test(id)
+    ? `https://www.bilibili.com/video/${id}`
+    : `https://www.bilibili.com/video/${id}`
+  // B 站视频标题不单独拉接口，交给 yt-dlp/mpv 解析；这里只返回 URL
+  return {
+    url,
+    headers: { Referer: 'https://www.bilibili.com', 'User-Agent': UA },
+    title: `bilibili-video-${id}`,
+    platform: 'bilibili',
+    needsYtdl: true
+  }
+}
+
 async function getJson(url: string, fetchFn: typeof fetch): Promise<any> {
   const resp = await fetchFn(url, { headers: HEADERS })
   if (!resp.ok) throw new Error(`HTTP ${resp.status}: ${url}`)

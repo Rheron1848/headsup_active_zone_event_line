@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { resolveBilibili, parseRoomInput } from '../../src/core/resolver/bilibili'
+import { resolveBilibili, parseRoomInput, parseVideoInput, resolveBilibiliVideo } from '../../src/core/resolver/bilibili'
 
 const roomInfoResp = {
   code: 0,
@@ -54,6 +54,29 @@ describe('parseRoomInput', () => {
   it('从直播 URL 提取', () =>
     expect(parseRoomInput('https://live.bilibili.com/12345?spm_id_from=x')).toBe('12345'))
   it('非法输入抛错', () => expect(() => parseRoomInput('hello')).toThrow())
+})
+
+describe('parseVideoInput', () => {
+  it('接受 BV 号', () => expect(parseVideoInput('BV1xx411c7mD')).toBe('BV1xx411c7mD'))
+  it('接受 av 号', () => expect(parseVideoInput('av170001')).toBe('av170001'))
+  it('从视频 URL 提取 BV', () =>
+    expect(parseVideoInput('https://www.bilibili.com/video/BV1xx411c7mD?spm_id_from=x')).toBe('BV1xx411c7mD'))
+  it('从视频 URL 提取 av', () =>
+    expect(parseVideoInput('https://www.bilibili.com/video/av170001')).toBe('av170001'))
+  it('非视频输入返回 null', () => expect(parseVideoInput('12345')).toBeNull())
+})
+
+describe('resolveBilibiliVideo', () => {
+  it('BV 号返回视频页 URL 并标记 needsYtdl', async () => {
+    const s = await resolveBilibiliVideo('BV1xx411c7mD')
+    expect(s.url).toBe('https://www.bilibili.com/video/BV1xx411c7mD')
+    expect(s.platform).toBe('bilibili')
+    expect(s.needsYtdl).toBe(true)
+  })
+  it('av 号返回视频页 URL', async () => {
+    const s = await resolveBilibiliVideo('av170001')
+    expect(s.url).toBe('https://www.bilibili.com/video/av170001')
+  })
 })
 
 describe('resolveBilibili', () => {

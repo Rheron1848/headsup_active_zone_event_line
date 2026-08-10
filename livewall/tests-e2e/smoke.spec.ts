@@ -51,7 +51,7 @@ test.describe('livewall smoke', () => {
   })
 
   test('preset can be added in manager and appears in all slot selectors', async () => {
-    await page.locator('input[placeholder="房间号/URL"]').first().fill('114514')
+    await page.locator('input[placeholder="房间号/URL/BV号"]').first().fill('114514')
     await page.locator('[data-testid="preset-add"]').click()
     await page.waitForTimeout(300)
 

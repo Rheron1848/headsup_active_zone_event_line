@@ -4,13 +4,15 @@
 
 ## 结构
 
+- `README.md` — 仓库根目录，先中文后英文双语（GitHub 首页展示用）
 - `livewall/` — Electron 应用（全部代码在此）
   - `src/shared/types.ts` — 全局共享类型（Source/SlotState/Rect/Layout/ResolvedStream/Preset）
   - `src/core/` — 纯逻辑，无 Electron 依赖，vitest 全覆盖：resolver（取流）/ danmaku（登录+发弹幕+节流）/ layout（平铺+存储）/ notes（Markdown 笔记）/ presets（预设源）
   - `src/main/` — Electron 主进程：player-manager（mpv 进程）、mpv-ipc（命名管道 JSON IPC）、mpv-args、win32 + win32-rect + window-tracker（窗口控制/跟随）、overlay-manager（工具条覆盖窗）、ipc-handlers、tray、shortcuts、cookie-store
   - `src/preload/`、`src/renderer/{panel,overlay}/` — 面板与工具条 UI（React）
-  - `scripts/` — fetch-binaries.mjs（下载 mpv/yt-dlp 到 resources/bin/）、test-*.mts（本机链路验证脚本）
+  - `scripts/` — fetch-binaries.mjs（下载 mpv/yt-dlp 到 resources/bin/，支持 GH_PROXY 环境变量）、test-*.mts（本机链路验证脚本）
   - `tests/` — vitest，与 src 镜像
+  - `tests-e2e/` — Playwright Electron 端到端测试（`npm run e2e`）
 
 ## 常用命令（在 livewall/ 下）
 
@@ -28,6 +30,7 @@ npm run dist                      # electron-builder NSIS 安装包（仅 Window
 ## 约定
 
 - 提交信息用中文、`feat:/fix:/test:/chore:/docs:` 前缀
+- README 保持「先整体中文、后整体英文」双语结构；关键源码文件注释中英双语，并注明 Kimi K3 参与生成、献给灰泽满Hazel
 - 纯逻辑一律放 `src/core/` 并配 vitest；Electron/Win32 依赖注入以便测试（参见 WindowTracker 的构造注入）
 - 不引入 axios（用内置 fetch）；不引入需要 node-gyp 的原生模块（koffi 除外）
 - win32.ts 的 koffi 绑定必须保持惰性加载，保证非 Windows 平台 import 不炸、单测可跑

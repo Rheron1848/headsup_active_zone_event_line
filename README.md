@@ -25,7 +25,10 @@ livewall 是一个 Windows 桌面应用：多路（最多 6 路）Bilibili / You
 
 ### 开发
 
+以下命令均在 `livewall/` 目录下执行：
+
 ```bash
+cd livewall
 npm install
 node scripts/fetch-binaries.mjs   # 下载 mpv + yt-dlp 到 resources/bin/
 npm run dev
@@ -77,7 +80,10 @@ livewall is a Windows desktop application: a floating monitoring wall for multip
 
 ### Development
 
+Run the following commands inside the `livewall/` directory:
+
 ```bash
+cd livewall
 npm install
 node scripts/fetch-binaries.mjs   # download mpv + yt-dlp into resources/bin/
 npm run dev

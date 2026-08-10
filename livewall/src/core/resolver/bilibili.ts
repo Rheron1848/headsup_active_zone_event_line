@@ -1,3 +1,5 @@
+// Bilibili live room and video URL resolution.
+// B 站直播间与视频地址解析。
 import type { ResolvedStream } from '../../shared/types'
 
 const UA =
@@ -30,6 +32,7 @@ export async function resolveBilibiliVideo(
   const url = /^av/.test(id)
     ? `https://www.bilibili.com/video/${id}`
     : `https://www.bilibili.com/video/${id}`
+  // Bilibili video title is not fetched via a separate API call; yt-dlp/mpv will resolve it.
   // B 站视频标题不单独拉接口，交给 yt-dlp/mpv 解析；这里只返回 URL
   return {
     url,
@@ -53,6 +56,7 @@ export async function resolveBilibili(
   fetchFn: typeof fetch = fetch
 ): Promise<ResolvedStream> {
   const id = parseRoomInput(roomInput)
+  // Room/get_info accepts both long and short room IDs and returns the real room_id, title and live status.
   // Room/get_info 同时接受长/短号，返回真实 room_id、标题、开播状态
   const info = await getJson(
     `https://api.live.bilibili.com/room/v1/Room/get_info?room_id=${id}`,
@@ -65,6 +69,7 @@ export async function resolveBilibili(
     `https://api.live.bilibili.com/xlive/web-room/v2/index/getRoomPlayInfo?room_id=${roomId}&protocol=0,1&format=0,1,2&codec=0,1&qn=10000&platform=web&ptype=8`,
     fetchFn
   )
+  // Pick the first available stream; url = host + base_url + extra
   // 选第一个可用流；url = host + base_url + extra
   const streams = play.playurl_info.playurl.stream
   for (const st of streams) {

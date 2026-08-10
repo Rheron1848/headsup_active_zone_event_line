@@ -1,5 +1,8 @@
+// Win32 window control (user32.dll via koffi).
 // Win32 窗口控制（user32.dll，经 koffi）。
 //
+// Lazy loading: koffi.load('user32.dll') is only executed on first function call,
+// so importing this module on non-Windows platforms (e.g. Linux dev machines) does not throw.
 // 惰性加载：koffi.load('user32.dll') 只在首次调用任一函数时执行，
 // 保证在非 Windows 平台（如 Linux 开发机）import 本模块不会抛错。
 //

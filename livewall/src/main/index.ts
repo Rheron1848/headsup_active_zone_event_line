@@ -1,3 +1,10 @@
+// livewall Electron main process entry.
+// livewall Electron 主进程入口。
+//
+// Responsibilities: create control panel, manage mpv players, track windows,
+// manage overlays, register IPC handlers, tray and global shortcuts.
+// 职责：创建控制面板、管理 mpv 播放器、跟踪窗口、管理工具条覆盖窗、注册 IPC、托盘与全局热键。
+
 import { app, BrowserWindow, safeStorage, screen } from 'electron'
 import path from 'node:path'
 import fs from 'node:fs'
@@ -19,6 +26,7 @@ const isWin = process.platform === 'win32'
 export function binDir(): string {
   if (app.isPackaged) return path.join(process.resourcesPath, 'bin')
 
+  // Non-packaged: dev mode, local debug, Playwright launching out/main/index.js directly
   // 非打包态：dev 模式、本机调试、Playwright 直接启动 out/main/index.js 时路径不同，逐个尝试
   const candidates = [
     path.join(app.getAppPath(), 'resources', 'bin'),

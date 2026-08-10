@@ -1,13 +1,10 @@
 # livewall
 
-献给灰泽满Hazel / Dedicated to Hazel
-
-> 本代码由 Kimi K3 参与生成。  
-> This code was generated with the participation of Kimi K3.
-
----
-
 ## 中文
+
+献给灰泽满Hazel
+
+本代码由 Kimi K3 参与生成。
 
 ### 简介
 
@@ -56,6 +53,10 @@ livewall/
 ---
 
 ## English
+
+Dedicated to Hazel
+
+This code was generated with the participation of Kimi K3.
 
 ### Introduction
 

@@ -57,7 +57,13 @@ function createPanel(): void {
   panel.on('closed', () => (panel = null))
   panel.webContents.on('console-message', (_e, level, message, line, sourceId) => {
     const label = ['debug', 'info', 'warn', 'error'][level] ?? String(level)
-    console.log(`[renderer:${label}] ${sourceId}:${line} ${message}`)
+    // 无控制台启动（如打包后双击 exe）时 stdout 管道已关闭，console.log 会抛 EPIPE
+    // When launched without a console (e.g. packaged exe), stdout is a broken pipe and console.log throws EPIPE
+    try {
+      console.log(`[renderer:${label}] ${sourceId}:${line} ${message}`)
+    } catch {
+      /* 忽略：stdout 不可写 / ignore: stdout not writable */
+    }
   })
   if (process.env.NODE_ENV === 'development' || process.env.ELECTRON_RENDERER_URL) {
     panel.webContents.openDevTools({ mode: 'detach' })
